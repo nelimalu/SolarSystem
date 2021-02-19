@@ -4,6 +4,7 @@ var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHei
 var renderer = new THREE.WebGLRenderer({antialias: true, canvas: canvas});
 var raycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
 
 const RATIO = 12_000_000;
 const M = 1_000_000;
@@ -15,11 +16,11 @@ renderer.setClearColor("#101010");
 renderer.setSize(window.innerWidth, window.innerHeight);
 camera.position.y = 10;
 camera.updateProjectionMatrix();
+controls.target = new THREE.Vector3(0,0,0);
+controls.maxDistance = 450;
+controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 
 document.body.appendChild(renderer.domElement);
-
-canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
-canvas.exitPointerLock = canvas.exitPointerLock || canvas.mozExitPointerLock;
 
 window.addEventListener("resize", () => {
 	renderer.setSize(window.innerWidth, window.innerHeight);
@@ -38,34 +39,6 @@ document.addEventListener("wheel", (event) => {
 	}
 });
 
-window.addEventListener("mousemove", (event) => {
-	if (MOUSE_LOCKED) {
-		console.log(camera.rotation.x);
-		camera.rotation.x -= event.movementY / SENSITIVITY;
-		//camera.rotation.y -= event.movementX / SENSITIVITY;
-		if (camera.rotation.x < -1.5) {
-			camera.rotation.x = -1.5;
-		}
-		else if (camera.rotation.x > 0) {
-			camera.rotation.x = 0;
-		}
-
-		camera.rotation.y -= event.movementX / SENSITIVITY;
-	}
-});
-
-document.addEventListener("click", (event) => {
-	if (!MOUSE_LOCKED) {
-		canvas.requestPointerLock();
-	}
-});
-
-if ("onpointerlockchange" in document) {
-	document.addEventListener('pointerlockchange', function(event) {
-		MOUSE_LOCKED = !MOUSE_LOCKED;
-	});
-}
-
 function rgb(red, green, blue) {
 	return new THREE.Color("rgb(" + red.toString() + "," + green.toString() + "," + blue.toString() + ")");
 }
@@ -78,12 +51,13 @@ function rad(deg) {
 	return deg * Math.PI / 180;
 }
 
-function Planet(colour, diameter, orbit_time, aphelion, perihelion, eccentricity) {
+function Planet(colour, diameter, orbit_time, inclination, aphelion, perihelion, eccentricity) {
 	this.colour = colour;
 	this.diameter = diameter;
 	this.aphelion = aphelion;
 	this.perihelion = perihelion;
 	this.eccentricity = eccentricity;
+	this.inclination = inclination
 
 	this.semiMajor = (aphelion + perihelion) / 2;
 	this.center = this.semiMajor - this.perihelion;
@@ -95,7 +69,7 @@ function Planet(colour, diameter, orbit_time, aphelion, perihelion, eccentricity
 			this.semiMajor, this.yRadius,           // xRadius, yRadius
 			0,  2 * Math.PI,  // aStartAngle, aEndAngle
 			false,            // aClockwise
-			0                // aRotation
+			rad(7)                // aRotation
 		);
 
 		const points = curve.getPoints(100);
@@ -123,23 +97,39 @@ function setLight() {
 	light.position.set(0,0,0);  // x y z
 	scene.add(light);
 
-	var light = new THREE.PointLight(0xFFFFFF, 2, 1000);  // colour, intensity, distance
+	var light = new THREE.PointLight(0xFFFFFF, 5, 1000);  // colour, intensity, distance
 	light.position.set(0,25,0);  // x y z
 	scene.add(light);
 
-	var light = new THREE.PointLight(0xFFFFFF, 2, 1000);  // colour, intensity, distance
-	light.position.set(0,-25,0);  // x y z
+	var light = new THREE.PointLight(0xFFFFFF, 5, 1000);
+	light.position.set(0,-25,0);
+	scene.add(light);
+
+	var light = new THREE.PointLight(0xFFFFFF, 5, 1000);
+	light.position.set(25,-25,0);
+	scene.add(light);
+
+	var light = new THREE.PointLight(0xFFFFFF, 5, 1000);
+	light.position.set(-25,25,0);
+	scene.add(light);
+
+	var light = new THREE.PointLight(0xFFFFFF, 5, 1000);
+	light.position.set(0,25,-25);
+	scene.add(light);
+
+	var light = new THREE.PointLight(0xFFFFFF, 5, 1000);
+	light.position.set(0,25,25);
 	scene.add(light);
 }
-// rgb(161, 37, 27)
-var planets = [new Planet(rgb(219,206,202), 5, 5, regulate(69.817 * M), regulate(46.002 * M), 0.2056), // mercury
-			   new Planet(rgb(34, 139, 34), 5, 5, regulate(152.1 * M), regulate(147.1 * M), 0.0167086), // Earth
-			   new Planet(rgb(161, 37, 27), 5, 5, regulate(206.7 * M), regulate(249.2 * M), 0.0934), // Mars
-			   new Planet(rgb(205,133,63), 5, 5, regulate(108.94 * M), regulate(107.48 * M), 0.0068), // Venus
-			   new Planet(rgb(227, 110, 75), 5, 5, regulate(816.618 * M), regulate(740.522 * M), 0.0489),
-			   new Planet(rgb(255,218,185), 5, 5, regulate(1514.504 * M), regulate(1352.55 * M), 0.0565),
-			   new Planet(rgb(79, 208, 231), 5, 5, regulate(3003.625 * M), regulate(2741.302 * M), 0.0457),
-			   new Planet(rgb(142, 195, 195), 5, 5, regulate(4545.671 * M), regulate(4444.449 * M), 0.0113)];
+
+var planets = [new Planet(rgb(219,206,202), 5, 5, 7, regulate(69.817 * M), regulate(46.002 * M), 0.2056), // Mercury
+				new Planet(rgb(205,133,63), 5, 5, 3.4, regulate(108.94 * M), regulate(107.48 * M), 0.0068), // Venus
+			   new Planet(rgb(34, 139, 34), 5, 5, 0, regulate(152.1 * M), regulate(147.1 * M), 0.0167086), // Earth
+			   new Planet(rgb(161, 37, 27), 5, 5, 1.9, regulate(206.7 * M), regulate(249.2 * M), 0.0934), // Mars
+			   new Planet(rgb(227, 110, 75), 5, 5, 1.3, regulate(816.618 * M), regulate(740.522 * M), 0.0489), // Jupiter
+			   new Planet(rgb(255,218,185), 5, 5, 2.5, regulate(1514.504 * M), regulate(1352.55 * M), 0.0565), // Saturn
+			   new Planet(rgb(79, 208, 231), 5, 5, 0.8, regulate(3003.625 * M), regulate(2741.302 * M), 0.0457), // Uranus
+			   new Planet(rgb(142, 195, 195), 5, 5, 1.8, regulate(4545.671 * M), regulate(4444.449 * M), 0.0113)]; // Neptune
 
 
 setLight();
@@ -151,7 +141,7 @@ for (let planet of planets) {
 
 var render = function() {
 	requestAnimationFrame(render);
-
+	controls.update();
 	renderer.render(scene, camera);
 }
 
